@@ -1,157 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Global Video Sync</title>
-  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <style>
-    body {
-      background: #111;
-      color: #fff;
-      font-family: sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-    input, button {
-      padding: 12px;
-      width: 320px;
-      margin: 10px;
-      border-radius: 5px;
-      border: none;
-    }
-    button {
-      background: #00ffe1;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    iframe, video {
-      margin-top: 20px;
-      width: 100%;
-      max-width: 800px;
-      height: 450px;
-      border: none;
-      border-radius: 10px;
-      background: #000;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Video Sync (YouTube)</title>
+  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    input, button {
+      padding: 12px;
+      width: 320px;
+      margin: 10px;
+      border-radius: 5px;
+      border: none;
+    }
+    button {
+      background: #00ffe1;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    iframe {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 800px;
+      height: 450px;
+      border-radius: 10px;
+      border: none;
+    }
+  </style>
 </head>
 <body>
 
-  <h1>Global Video Sync</h1>
-  <input type="text" id="videoLinkInput" placeholder="Paste any video URL" />
-  <button onclick="loadVideo()">Load Video</button>
+<h1>Global YouTube Video Sync</h1>
 
-  <div id="videoContainer">
-    <video id="videoPlayer" controls></video>
-    <div id="youtubeContainer"></div>
-  </div>
+<input type="text" id="videoLinkInput" placeholder="Paste YouTube Link" />
+<button onclick="loadVideo()">Load Video</button>
+
+<div id="playerContainer"></div>
 
 <script>
-  const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
-  const channel = ably.channels.get("filetransfer-video-sync-room");
+  const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
+  const channel = ably.channels.get("global-youtube-sync");
 
-  const video = document.getElementById("videoPlayer");
-  const ytContainer = document.getElementById("youtubeContainer");
+  let player;
+  let isSyncing = false;
 
-  let ytPlayer = null;
-  let currentMode = "video"; // or "youtube"
-  let isSyncing = false;
+  function getYouTubeVideoID(url) {
+    const regex = /(?:youtube\.com\/.*v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  }
 
-  function loadVideo() {
-    const link = document.getElementById("videoLinkInput").value.trim();
-    if (!link) return;
+  function loadVideo() {
+    const input = document.getElementById("videoLinkInput").value.trim();
+    const videoID = getYouTubeVideoID(input);
+    if (videoID) {
+      channel.publish("load", { videoID });
+      createPlayer(videoID);
+    }
+  }
 
-    // Detect YouTube Link
-    const youtubeMatch = link.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-    if (youtubeMatch) {
-      const videoId = youtubeMatch[1];
-      loadYouTube(videoId);
-      channel.publish("video-load", { type: "youtube", id: videoId });
-      return;
-    }
+  function createPlayer(videoID) {
+    document.getElementById("playerContainer").innerHTML = '<div id="player"></div>';
+    player = new YT.Player("player", {
+      videoId: videoID,
+      playerVars: { autoplay: 1, controls: 1 },
+      events: {
+        onReady: onPlayerReady,
+        onStateChange: onPlayerStateChange
+      }
+    });
+  }
 
-    // Detect direct .mp4
-    if (link.endsWith(".mp4") || link.endsWith(".webm") || link.includes(".mp4?")) {
-      loadHTML5(link);
-      channel.publish("video-load", { type: "html5", link });
-      return;
-    }
+  function onPlayerReady() {
+    setInterval(() => {
+      if (player && player.getPlayerState() === 1 && !isSyncing) {
+        channel.publish("sync", { action: "play", time: player.getCurrentTime() });
+      }
+    }, 3000);
+  }
 
-    alert("Unsupported link. Only YouTube and direct video links are supported.");
-  }
+  function onPlayerStateChange(event) {
+    if (isSyncing) return;
+    const time = player.getCurrentTime();
 
-  function loadYouTube(videoId) {
-    currentMode = "youtube";
-    video.style.display = "none";
-    ytContainer.innerHTML = `<div id="ytplayer"></div>`;
-    ytPlayer = new YT.Player('ytplayer', {
-      height: '450',
-      width: '800',
-      videoId,
-      events: {
-        onReady: () => ytPlayer.playVideo(),
-        onStateChange: syncYTEvents
-      }
-    });
-  }
+    switch (event.data) {
+      case YT.PlayerState.PLAYING:
+        channel.publish("sync", { action: "play", time });
+        break;
+      case YT.PlayerState.PAUSED:
+        channel.publish("sync", { action: "pause", time });
+        break;
+      case YT.PlayerState.BUFFERING:
+        channel.publish("sync", { action: "seek", time });
+        break;
+    }
+  }
 
-  function syncYTEvents(event) {
-    if (isSyncing) return;
-    if (event.data === YT.PlayerState.PLAYING) {
-      channel.publish("video-sync", { action: "play", time: ytPlayer.getCurrentTime(), type: "youtube" });
-    } else if (event.data === YT.PlayerState.PAUSED) {
-      channel.publish("video-sync", { action: "pause", time: ytPlayer.getCurrentTime(), type: "youtube" });
-    }
-  }
+  channel.subscribe("load", msg => {
+    if (msg.connectionId === ably.connection.id) return;
+    createPlayer(msg.data.videoID);
+  });
 
-  function loadHTML5(link) {
-    currentMode = "html5";
-    ytContainer.innerHTML = "";
-    video.style.display = "block";
-    video.src = link;
-    video.load();
-    video.play();
-  }
+  channel.subscribe("sync", msg => {
+    if (msg.connectionId === ably.connection.id) return;
+    if (!player) return;
 
-  // Listen for remote video loads
-  channel.subscribe("video-load", (msg) => {
-    if (msg.connectionId === ably.connection.id) return;
-    if (msg.data.type === "html5") loadHTML5(msg.data.link);
-    if (msg.data.type === "youtube") loadYouTube(msg.data.id);
-  });
+    isSyncing = true;
 
-  // HTML5 video events
-  video.addEventListener("play", () => {
-    if (!isSyncing) channel.publish("video-sync", { action: "play", time: video.currentTime, type: "html5" });
-  });
-  video.addEventListener("pause", () => {
-    if (!isSyncing) channel.publish("video-sync", { action: "pause", time: video.currentTime, type: "html5" });
-  });
-  video.addEventListener("seeked", () => {
-    if (!isSyncing) channel.publish("video-sync", { action: "seek", time: video.currentTime, type: "html5" });
-  });
+    const { action, time } = msg.data;
 
-  // Sync subscriber
-  channel.subscribe("video-sync", (msg) => {
-    if (msg.connectionId === ably.connection.id) return;
-    isSyncing = true;
+    if (Math.abs(player.getCurrentTime() - time) > 1) {
+      player.seekTo(time, true);
+    }
 
-    if (msg.data.type === "html5") {
-      video.currentTime = msg.data.time;
-      if (msg.data.action === "play") video.play();
-      if (msg.data.action === "pause") video.pause();
-      if (msg.data.action === "seek") video.currentTime = msg.data.time;
-    }
+    if (action === "play") player.playVideo();
+    if (action === "pause") player.pauseVideo();
 
-    if (msg.data.type === "youtube" && ytPlayer) {
-      ytPlayer.seekTo(msg.data.time, true);
-      if (msg.data.action === "play") ytPlayer.playVideo();
-      if (msg.data.action === "pause") ytPlayer.pauseVideo();
-    }
-
-    setTimeout(() => { isSyncing = false; }, 300);
-  });
+    setTimeout(() => (isSyncing = false), 500);
+  });
 </script>
 
 </body>
