@@ -1,179 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Global Video Sync (YouTube)</title>
-  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      background-color: #111;
-      color: #fff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 30px 10px;
-    }
-
-    h1 {
-      color: #00ffe1;
-      margin-bottom: 20px;
-      text-align: center;
-    }
-
-    input[type="text"] {
-      padding: 12px 15px;
-      width: 90%;
-      max-width: 400px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      border: none;
-      background: #222;
-      color: #fff;
-      font-size: 16px;
-    }
-
-    input::placeholder {
-      color: #888;
-    }
-
-    button {
-      padding: 12px 20px;
-      background: #00ffe1;
-      border: none;
-      font-weight: bold;
-      border-radius: 6px;
-      cursor: pointer;
-      color: #000;
-      font-size: 16px;
-      transition: background 0.3s ease;
-      box-shadow: 0 0 10px rgba(0, 255, 225, 0.4);
-    }
-
-    button:hover {
-      background: #00e6cd;
-    }
-
-    #playerContainer {
-      margin-top: 30px;
-      width: 100%;
-      max-width: 800px;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 0 25px rgba(0, 255, 225, 0.2);
-    }
-
-    iframe {
-      width: 100%;
-      height: 450px;
-      border: none;
-    }
-
-    @media (max-width: 600px) {
-      iframe {
-        height: 230px;
-      }
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Global Video Watch Party</title>
+  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #00ffe1;
+      margin-bottom: 20px;
+    }
+    input {
+      padding: 12px;
+      width: 90%;
+      max-width: 500px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border: none;
+      font-size: 16px;
+    }
+    button {
+      padding: 12px 24px;
+      background: #00ffe1;
+      color: #000;
+      font-weight: bold;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+    iframe {
+      width: 100%;
+      max-width: 900px;
+      height: 500px;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+      background: #000;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Global YouTube Video Sync</h1>
+  <h1>🌍 Global Video Watch Party</h1>
+  <input type="text" id="videoLinkInput" placeholder="Paste any website's video link (YouTube, Vimeo, etc.)" />
+  <button onclick="loadVideo()">Load & Sync Video</button>
 
-<input type="text" id="videoLinkInput" placeholder="Paste YouTube Link" />
-<button onclick="loadVideo()">Load Video</button>
+  <iframe id="videoFrame" allowfullscreen allow="autoplay; encrypted-media"></iframe>
 
-<div id="playerContainer"></div>
+  <script>
+    // Setup Ably
+    const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
+    const channel = ably.channels.get("global-video-watch-room");
 
-<script>
-  const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
-  const channel = ably.channels.get("global-youtube-sync");
+    const frame = document.getElementById("videoFrame");
 
-  let player;
-  let isSyncing = false;
+    function loadVideo() {
+      const input = document.getElementById("videoLinkInput").value.trim();
+      if (input) {
+        frame.src = input;
+        channel.publish("video-load", { link: input });
+      }
+    }
 
-  function getYouTubeVideoID(url) {
-    const regex = /(?:youtube\.com\/.*v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  }
-
-  function loadVideo() {
-    const input = document.getElementById("videoLinkInput").value.trim();
-    const videoID = getYouTubeVideoID(input);
-    if (videoID) {
-      channel.publish("load", { videoID });
-      createPlayer(videoID);
-    }
-  }
-
-  function createPlayer(videoID) {
-    document.getElementById("playerContainer").innerHTML = '<div id="player"></div>';
-    player = new YT.Player("player", {
-      videoId: videoID,
-      playerVars: { autoplay: 1, controls: 1 },
-      events: {
-        onReady: onPlayerReady,
-        onStateChange: onPlayerStateChange
-      }
-    });
-  }
-
-  function onPlayerReady() {
-    setInterval(() => {
-      if (player && player.getPlayerState() === 1 && !isSyncing) {
-        channel.publish("sync", { action: "play", time: player.getCurrentTime() });
-      }
-    }, 3000);
-  }
-
-  function onPlayerStateChange(event) {
-    if (isSyncing) return;
-    const time = player.getCurrentTime();
-
-    switch (event.data) {
-      case YT.PlayerState.PLAYING:
-        channel.publish("sync", { action: "play", time });
-        break;
-      case YT.PlayerState.PAUSED:
-        channel.publish("sync", { action: "pause", time });
-        break;
-      case YT.PlayerState.BUFFERING:
-        channel.publish("sync", { action: "seek", time });
-        break;
-    }
-  }
-
-  channel.subscribe("load", msg => {
-    if (msg.connectionId === ably.connection.id) return;
-    createPlayer(msg.data.videoID);
-  });
-
-  channel.subscribe("sync", msg => {
-    if (msg.connectionId === ably.connection.id) return;
-    if (!player) return;
-
-    isSyncing = true;
-
-    const { action, time } = msg.data;
-
-    if (Math.abs(player.getCurrentTime() - time) > 1) {
-      player.seekTo(time, true);
-    }
-
-    if (action === "play") player.playVideo();
-    if (action === "pause") player.pauseVideo();
-
-    setTimeout(() => (isSyncing = false), 500);
-  });
-</script>
+    // Receive and update iframe for others
+    channel.subscribe("video-load", (msg) => {
+      if (msg.connectionId !== ably.connection.id) {
+        frame.src = msg.data.link;
+      }
+    });
+  </script>
 
 </body>
 </html>
