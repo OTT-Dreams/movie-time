@@ -19,6 +19,7 @@
     h1 {
       color: #00ffe1;
       margin-bottom: 20px;
+      text-align: center;
     }
     input {
       padding: 12px;
@@ -54,27 +55,55 @@
 <body>
 
   <h1>🌍 Global Video Watch Party</h1>
-  <input type="text" id="videoLinkInput" placeholder="Paste any website's video link (YouTube, Vimeo, etc.)" />
+  <input type="text" id="videoLinkInput" placeholder="Paste YouTube, Vimeo, or Filetransfer.io link" />
   <button onclick="loadVideo()">Load & Sync Video</button>
 
   <iframe id="videoFrame" allowfullscreen allow="autoplay; encrypted-media"></iframe>
 
   <script>
-    // Setup Ably
     const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
     const channel = ably.channels.get("global-video-watch-room");
-
     const frame = document.getElementById("videoFrame");
+
+    function convertToEmbed(link) {
+      // YouTube long format
+      if (link.includes("youtube.com/watch?v=")) {
+        const videoId = link.split("v=")[1].split("&")[0];
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+      }
+
+      // YouTube short format
+      if (link.includes("youtu.be/")) {
+        const videoId = link.split("youtu.be/")[1].split("?")[0];
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+      }
+
+      // Vimeo
+      if (link.includes("vimeo.com/")) {
+        const videoId = link.split("vimeo.com/")[1].split("?")[0];
+        return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+      }
+
+      // Filetransfer.io direct links or .mp4 files
+      if (link.endsWith(".mp4") || link.includes("filetransfer.io")) {
+        return link;
+      }
+
+      return ""; // Not supported
+    }
 
     function loadVideo() {
       const input = document.getElementById("videoLinkInput").value.trim();
-      if (input) {
-        frame.src = input;
-        channel.publish("video-load", { link: input });
+      const embedLink = convertToEmbed(input);
+
+      if (embedLink) {
+        frame.src = embedLink;
+        channel.publish("video-load", { link: embedLink });
+      } else {
+        alert("Invalid or unsupported video link.");
       }
     }
 
-    // Receive and update iframe for others
     channel.subscribe("video-load", (msg) => {
       if (msg.connectionId !== ably.connection.id) {
         frame.src = msg.data.link;
