@@ -66,11 +66,37 @@
 
     const frame = document.getElementById("videoFrame");
 
+    function convertToEmbed(link) {
+      // YouTube standard
+      if (link.includes("youtube.com/watch?v=")) {
+        const id = link.split("v=")[1].split("&")[0];
+        return `https://www.youtube.com/embed/${id}?autoplay=1`;
+      }
+
+      // YouTube short
+      if (link.includes("youtu.be/")) {
+        const id = link.split("youtu.be/")[1].split("?")[0];
+        return `https://www.youtube.com/embed/${id}?autoplay=1`;
+      }
+
+      // Vimeo
+      if (link.includes("vimeo.com/")) {
+        const id = link.split("vimeo.com/")[1].split("?")[0];
+        return `https://player.vimeo.com/video/${id}?autoplay=1`;
+      }
+
+      // Direct links like filetransfer.io or .mp4
+      return link;
+    }
+
     function loadVideo() {
       const input = document.getElementById("videoLinkInput").value.trim();
-      if (input) {
-        frame.src = input;
-        channel.publish("video-load", { link: input });
+      const embedLink = convertToEmbed(input);
+      if (embedLink) {
+        frame.src = embedLink;
+        channel.publish("video-load", { link: embedLink });
+      } else {
+        alert("Unsupported video link.");
       }
     }
 
