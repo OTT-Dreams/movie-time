@@ -1,112 +1,236 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Global Video Watch Party</title>
-  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NewsLite — AdX Demo</title>
+  <meta name="description" content="Minimal news site with Google AdX ad slots, random articles, and a Continue box that routes to another page." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: #fff;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
+    :root{
+      --bg:#0b1020;      /* deep navy */
+      --card:#121938;    /* card base */
+      --muted:#8ca0ff;   /* accent */
+      --text:#ecf0ff;    /* primary text */
+      --soft:#94a3b8;    /* secondary text */
+      --ring:rgba(140,160,255,.35);
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --radius:18px;
     }
-    h1 {
-      color: #00ffe1;
-      margin-bottom: 20px;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:radial-gradient(1200px 800px at 80% -10%, #1a2360 0%, transparent 60%),linear-gradient(180deg,#0b1020 0%,#0b1020 30%,#0e1530 100%); color:var(--text); -webkit-font-smoothing:antialiased;}
+    a{color:inherit; text-decoration:none}
+    .container{max-width:1100px; margin-inline:auto; padding:24px}
+    header{
+      position:sticky; top:0; z-index:40; backdrop-filter:saturate(160%) blur(10px);
+      background:linear-gradient(180deg, rgba(11,16,32,.85), rgba(11,16,32,.55)); border-bottom:1px solid rgba(255,255,255,.06);
     }
-    input {
-      padding: 12px;
-      width: 90%;
-      max-width: 500px;
-      margin: 10px 0;
-      border-radius: 5px;
-      border: none;
-      font-size: 16px;
+    .nav{display:flex; gap:16px; align-items:center; justify-content:space-between; padding:16px 24px}
+    .brand{display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:.5px}
+    .brand-badge{width:34px; height:34px; border-radius:12px; background:linear-gradient(135deg,#6477ff,#b9c3ff); box-shadow:0 6px 18px rgba(100,119,255,.35)}
+    .search{display:flex; align-items:center; gap:8px; background:rgba(255,255,255,.04); padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.06)}
+    .search input{background:transparent; border:0; color:var(--text); outline:none; width:240px}
+
+    .grid{display:grid; grid-template-columns:1fr; gap:24px; margin-top:20px}
+    @media(min-width:900px){
+      .grid{grid-template-columns:1.65fr .85fr}
     }
-    button {
-      padding: 12px 24px;
-      background: #00ffe1;
-      color: #000;
-      font-weight: bold;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-      margin-bottom: 20px;
-      font-size: 16px;
-    }
-    iframe {
-      width: 100%;
-      max-width: 900px;
-      height: 500px;
-      border: none;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-      background: #000;
-    }
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.06); border-radius:var(--radius); box-shadow:var(--shadow)}
+    .card .hd{padding:18px 18px 0; display:flex; align-items:center; justify-content:space-between}
+    .hd h2{font-size:18px; margin:0; color:#dfe6ff}
+    .content{padding:18px}
+
+    .articles{display:grid; grid-template-columns:1fr; gap:18px}
+    @media(min-width:700px){.articles{grid-template-columns:1fr 1fr}}
+    .article{display:grid; grid-template-columns:120px 1fr; gap:14px; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03)}
+    .thumb{width:120px; height:84px; border-radius:12px; background:#222; overflow:hidden}
+    .thumb img{width:100%; height:100%; object-fit:cover}
+    .article h3{margin:0 0 6px 0; font-size:16px}
+    .meta{font-size:12px; color:var(--soft)}
+
+    .adbox{display:flex; align-items:center; justify-content:center; border-radius:14px; background:rgba(255,255,255,.04); border:1px dashed rgba(140,160,255,.45); padding:12px; min-height:100px;}
+    .adlabel{font-size:11px; letter-spacing:.4px; color:var(--soft); margin-bottom:8px}
+
+    .continue-card{display:flex; flex-direction:column; gap:10px; padding:18px; border-radius:16px; background:linear-gradient(180deg, rgba(100,119,255,.15), rgba(100,119,255,.06)); border:1px solid var(--ring)}
+    .continue-card h3{margin:0}
+    .btn{display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:#1a2360; color:#fff; cursor:pointer; transition:.2s transform ease, .2s background ease}
+    .btn:hover{transform:translateY(-1px); background:#263080}
+
+    .footer{margin-top:24px; padding:18px; color:var(--soft); font-size:13px; text-align:center}
+
+    /* "Next Page" view */
+    .route{display:none}
+    .route.active{display:block}
   </style>
-</head>
-<body>
-
-  <h1>🌍 Global Video Watch Party</h1>
-  <input type="text" id="videoLinkInput" placeholder="Paste any website's video link (YouTube, Vimeo, etc.)" />
-  <button onclick="loadVideo()">Load & Sync Video</button>
-
-  <iframe id="videoFrame" allowfullscreen allow="autoplay; encrypted-media"></iframe>
-
+  
+  <!-- Google Publisher Tag (GPT) for AdX - Replace ad unit paths with your own. -->
+  <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
   <script>
-    // Setup Ably
-    const ably = new Ably.Realtime("x3A3zw.0cEwww:LKwrrj7RypK6l5y-WjlYh6sZUgxBQC8-4432KBULIew");
-    const channel = ably.channels.get("global-video-watch-room");
+    window.googletag = window.googletag || {cmd: []};
+    googletag.cmd.push(function() {
+      // DEFINE SLOTS — change \/1234567\/unit_name to your network code & ad units.
+      googletag.defineSlot('/1234567/home_top', [[728,90],[970,90],[320,50]], 'ad-top')
+        .addService(googletag.pubads());
+      googletag.defineSlot('/1234567/home_sidebar', [[300,250],[336,280]], 'ad-side')
+        .addService(googletag.pubads());
+      googletag.defineSlot('/1234567/next_top', [[728,90],[320,50]], 'ad-next-top')
+        .addService(googletag.pubads());
 
-    const frame = document.getElementById("videoFrame");
-
-    function convertToEmbed(link) {
-      // YouTube standard
-      if (link.includes("youtube.com/watch?v=")) {
-        const id = link.split("v=")[1].split("&")[0];
-        return `https://www.youtube.com/embed/${id}?autoplay=1`;
-      }
-
-      // YouTube short
-      if (link.includes("youtu.be/")) {
-        const id = link.split("youtu.be/")[1].split("?")[0];
-        return `https://www.youtube.com/embed/${id}?autoplay=1`;
-      }
-
-      // Vimeo
-      if (link.includes("vimeo.com/")) {
-        const id = link.split("vimeo.com/")[1].split("?")[0];
-        return `https://player.vimeo.com/video/${id}?autoplay=1`;
-      }
-
-      // Direct links like filetransfer.io or .mp4
-      return link;
-    }
-
-    function loadVideo() {
-      const input = document.getElementById("videoLinkInput").value.trim();
-      const embedLink = convertToEmbed(input);
-      if (embedLink) {
-        frame.src = embedLink;
-        channel.publish("video-load", { link: embedLink });
-      } else {
-        alert("Unsupported video link.");
-      }
-    }
-
-    // Receive and update iframe for others
-    channel.subscribe("video-load", (msg) => {
-      if (msg.connectionId !== ably.connection.id) {
-        frame.src = msg.data.link;
-      }
+      googletag.pubads().enableSingleRequest();
+      googletag.pubads().collapseEmptyDivs();
+      googletag.enableServices();
     });
   </script>
+</head>
+<body>
+  <header>
+    <div class="nav container">
+      <div class="brand"><span class="brand-badge"></span> NewsLite</div>
+      <div class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.3-4.3m1.3-5.2a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="q" placeholder="খুঁজুন… (type to filter)" />
+      </div>
+    </div>
+  </header>
 
+  <main class="container">
+    <!-- ROUTE: HOME -->
+    <section id="route-home" class="route active">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <div class="hd">
+              <h2>আজকের টপ স্টোরিজ</h2>
+              <span class="adlabel">Ad</span>
+            </div>
+            <div class="content">
+              <!-- TOP AD (Leaderboard) -->
+              <div class="adbox">
+                <div id="ad-top">
+                  <script>googletag.cmd.push(function() { googletag.display('ad-top'); });</script>
+                </div>
+              </div>
+              <div class="articles" id="articles"></div>
+            </div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="card">
+            <div class="hd"><h2>Continue</h2></div>
+            <div class="content">
+              <div class="continue-card">
+                <h3>পরের পেজে যেতে ক্লিক করুন</h3>
+                <p class="soft">একটি ছোট ক্লিকেই পরের কন্টেন্ট—আরও আর্টিকেল ও একটি নতুন অ্যাড স্লট।</p>
+                <button class="btn" id="go-continue">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  Click & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="height:18px"></div>
+          <div class="card">
+            <div class="hd"><h2>Sponsored</h2></div>
+            <div class="content">
+              <!-- SIDEBAR AD (Rectangle) -->
+              <div class="adbox">
+                <div id="ad-side">
+                  <script>googletag.cmd.push(function() { googletag.display('ad-side'); });</script>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ROUTE: NEXT PAGE -->
+    <section id="route-next" class="route">
+      <div class="card">
+        <div class="hd">
+          <h2>Next Page</h2>
+          <span class="adlabel">Ad</span>
+        </div>
+        <div class="content">
+          <!-- TOP AD on Next Page -->
+          <div class="adbox">
+            <div id="ad-next-top">
+              <script>googletag.cmd.push(function() { googletag.display('ad-next-top'); });</script>
+            </div>
+          </div>
+          <div class="articles" id="more-articles"></div>
+          <div style="margin-top:16px"><a class="btn" href="#home">⬅ ফিরে যান</a></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">© <span id="yr"></span> NewsLite. Demo layout for Google AdX via GPT. Replace ad unit paths before going live.</div>
+  </main>
+
+  <script>
+    // ---------- ROUTER (hash based) ----------
+    const routes = {
+      home: document.getElementById('route-home'),
+      next: document.getElementById('route-next')
+    };
+    function nav(to){
+      Object.values(routes).forEach(el=>el.classList.remove('active'));
+      if(to==='next'){ routes.next.classList.add('active'); location.hash = 'continue'; }
+      else { routes.home.classList.add('active'); location.hash = 'home'; }
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
+    document.getElementById('go-continue').addEventListener('click', ()=> nav('next'));
+    window.addEventListener('hashchange', ()=> {
+      if(location.hash.replace('#','')==='continue') nav('next');
+      else nav('home');
+    });
+    // initial
+    if(location.hash.replace('#','')==='continue') nav('next');
+
+    // ---------- ARTICLES (random) ----------
+    const src = [
+      {t:'টেক: ওপেন সোর্সের নতুন দিগন্ত', d:'নতুন প্রজেক্টে ডেভেলপারদের আগ্রহ বাড়ছে।', img:'https://picsum.photos/seed/os/400/240'},
+      {t:'স্পোর্টস: রোমাঞ্চকর ম্যাচ', d:'শেষ ওভারে নাটকীয় জয়ে উল্লাস।', img:'https://picsum.photos/seed/sports/400/240'},
+      {t:'এন্টারটেইনমেন্ট: নতুন ওয়েব সিরিজ', d:'দর্শকদের প্রশংসা কুড়াচ্ছে।', img:'https://picsum.photos/seed/series/400/240'},
+      {t:'লাইফস্টাইল: স্মার্ট ডায়েট', d:'কম খরচে স্বাস্থ্যকর খাবারের টিপস।', img:'https://picsum.photos/seed/diet/400/240'},
+      {t:'ভ্রমণ: পাহাড় ডাকছে', d:'সপ্তাহান্তে কাছাকাছি গন্তব্য।', img:'https://picsum.photos/seed/travel/400/240'},
+      {t:'গেমিং: ই-স্পোর্টস টুর্নামেন্ট', d:'প্রাইজপুল ভেঙেছে রেকর্ড।', img:'https://picsum.photos/seed/esports/400/240'},
+      {t:'ফিনটেক: ইউপিআই আপডেট', d:'পেমেন্ট আরও দ্রুত ও নিরাপদ।', img:'https://picsum.photos/seed/fin/400/240'},
+      {t:'শিক্ষা: স্কিল আপ', d:'অনলাইনে নতুন কোর্সের ঝড়।', img:'https://picsum.photos/seed/edu/400/240'}
+    ];
+
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a }
+    function render(list, host){
+      host.innerHTML = list.map(x=>`
+        <a class="article" href="#continue">
+          <div class="thumb"><img src="${x.img}" alt="${x.t}" loading="lazy" /></div>
+          <div>
+            <h3>${x.t}</h3>
+            <div class="meta">${x.d}</div>
+          </div>
+        </a>`).join('');
+    }
+    render(shuffle([...src]).slice(0,6), document.getElementById('articles'));
+    render(shuffle([...src]).slice(0,6), document.getElementById('more-articles'));
+
+    // search filter
+    const q = document.getElementById('q');
+    q.addEventListener('input', ()=>{
+      const term = q.value.toLowerCase();
+      document.querySelectorAll('.article').forEach(a=>{
+        const hit = a.innerText.toLowerCase().includes(term);
+        a.style.display = hit ? 'grid' : 'none';
+      });
+    });
+
+    // year
+    document.getElementById('yr').textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
